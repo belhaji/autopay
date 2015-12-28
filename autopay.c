@@ -63,10 +63,10 @@ typedef struct {
 
 
 typedef struct {
-    char fullname[NAME_LEN];    // full name of the employee
-    char cin[CIN_LEN];          // national code identifier
+    gchar fullname[NAME_LEN];    // full name of the employee
+    gchar cin[CIN_LEN];          // national code identifier
     gchar username[USERNAME_LEN];// user login name
-    char password[PASSWORD_LEN];// user password
+    gchar password[PASSWORD_LEN];// user password
     short isAdmin;
     short isActive;             // user privilege 0 if is encaissier 1 if is administrator
 } Employee ;
@@ -190,10 +190,35 @@ typedef struct
 
 typedef struct 
 {
+     GtkWidget  *window,
+                *switchIsAdmin,
+                *switchIsActive,
+                *entryUsername,
+                *entryPassword,
+                *entryCIN,
+                *entryFullName;
+} UsersDialogAdd;
+
+typedef struct 
+{
+     GtkWidget  *window,
+                *switchIsAdmin,
+                *switchIsActive,
+                *entryUsername,
+                *entryPassword,
+                *entryCIN,
+                *entryFullName;
+    GtkTreeSelection *selection;
+} UsersDialogEdit;
+
+typedef struct 
+{
     MainWindow mainWindow;
     LoginWindow loginWindow;
     LogDialog logDialog;
     UsersDialog usersDialog;
+    UsersDialogAdd usersDialogAdd;
+    UsersDialogEdit usersDialogEdit;
     FILE* configFile;
     FILE* usersFile;
     FILE* caisseFile;
@@ -231,6 +256,14 @@ void clear_log_action(GtkWidget *widget,gpointer data);
 void users_dialog(App *app);
 void show_users_dialog(GtkWidget*,gpointer);
 void users_dialog_close(GtkWidget *widget, gpointer data);
+void users_subdialog_add(App *app);
+void users_subdialog_show(GtkWidget* widget,gpointer data);
+void users_subdialog_add_save(GtkWidget* widget,gpointer data);
+void users_subdialog_add_cancel(GtkWidget* widget,gpointer data);
+void users_subdialog_edit(App *app);
+void users_subdialog_edit_show(GtkWidget* widget,gpointer data);
+void users_subdialog_edit_save(GtkWidget* widget,gpointer data);
+void users_subdialog_edit_cancel(GtkWidget *widget,gpointer data);
 
 
 int main(int argc, char  *argv[])
@@ -343,11 +376,6 @@ gchar* date_time_get(){
 }
 
 
-
-void log_init(){
-
-}
-
 int log_action(FILE *file, Employee *emp,Ticket* tkt,char *msg){
     
     gchar *time = date_time_get();
@@ -391,8 +419,6 @@ int log_get_text(FILE* file,char **text,int *len){
     return 1;
 }
 
-
-
 int caisse_add(FILE *file, double price){
     if(!file){
         fprintf(stderr, "Error file not opened %s\n",CAISSE_FILE);
@@ -406,7 +432,6 @@ int caisse_add(FILE *file, double price){
     fwrite(&caisse, sizeof(double), 1, file);
     return 0;
 }
-
 
 int caisse_sub(FILE *file,double  price){
     if(!file){
@@ -512,13 +537,13 @@ double category_get_price(FILE *file,  CategoryType catType,  ClientType ct){
 }
 
 
-Employee* employee_new(char *fname, char *cin, gchar *username, char *password, short isAdmin, short isActive){
+Employee* employee_new(gchar *fname, gchar *cin, gchar *username, gchar *password, short isAdmin, short isActive){
     Employee *emp = (Employee*) malloc(sizeof(Employee));
     if (emp) {
-        strncpy(emp->fullname, fname, NAME_LEN-1);
-        strncpy(emp->cin, cin, CIN_LEN-1);
+        g_strlcpy(emp->fullname, fname, NAME_LEN-1);
+        g_strlcpy(emp->cin, cin, CIN_LEN-1);
         g_strlcpy(emp->username, username, USERNAME_LEN-1);
-        strncpy(emp->password, password, PASSWORD_LEN-1);
+        g_strlcpy(emp->password, password, PASSWORD_LEN-1);
         emp->isAdmin = isAdmin;
         emp->isActive = isActive;
         return emp;
@@ -531,7 +556,6 @@ void employee_free(Employee *emp){
         free(emp);
     }
 }
-
 
 int employee_add(FILE *file, Employee *emp){
     if(!file){
@@ -753,7 +777,6 @@ void login(GtkWidget* widget, gpointer data){
         emp = employee_get(app->usersFile,username);
         if (strcmp(emp->password,password) == 0 && emp->isActive)
         {
-            g_print("login success\n");
             admin_window(app);
             gtk_widget_hide(app->loginWindow.window);
 
@@ -879,6 +902,7 @@ void log_dialog(App *app){
 
 
 void show_log(GtkWidget* widget, gpointer data){
+
     log_dialog((App*) data);
 }
 
@@ -1003,6 +1027,8 @@ void users_dialog(App* app){
     gtk_box_pack_start(GTK_BOX(vbox),scrollWindow,TRUE,TRUE,0);
 
     g_signal_connect(btnClose, "clicked",G_CALLBACK(users_dialog_close), app); 
+    g_signal_connect(btnAdd, "clicked",G_CALLBACK(users_subdialog_show), app); 
+    g_signal_connect(btnEdit, "clicked",G_CALLBACK(users_subdialog_edit_show), app); 
 
 
 
@@ -1013,10 +1039,6 @@ void users_dialog(App* app){
 
 
     gtk_widget_show_all(window);
-
-
-
-
 }
 
 
@@ -1031,8 +1053,300 @@ void users_dialog_close(GtkWidget *widget, gpointer data){
     gtk_window_close(GTK_WINDOW(app->usersDialog.window));
 }
 
+void users_subdialog_add(App *app){
+    GtkWidget   *window,
+                *btnSave,
+                *btnCancel,
+                *grid,
+                *lblUsername,
+                *lblPassword,
+                *lblFullName,
+                *lblCIN,
+                *lblIsAdmin,
+                *lblIsActive,
+                *switchIsAdmin,
+                *switchIsActive,
+                *entryUsername,
+                *entryPassword,
+                *entryCIN,
+                *entryFullName;
+
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_position(GTK_WINDOW(window),GTK_WIN_POS_CENTER);
+    gtk_window_set_title(GTK_WINDOW(window),"Ajouter un utilisateur");
+    gtk_window_set_modal(GTK_WINDOW(window),TRUE);
+    gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->usersDialog.window));
+
+    grid = gtk_grid_new();
+
+    btnSave = gtk_button_new_with_label("Ajouter");
+    btnCancel = gtk_button_new_with_label("Annuler");
+
+    lblFullName = gtk_label_new("Nom complet :");
+    lblUsername = gtk_label_new("Nom de l'utilisateur :");
+    lblPassword = gtk_label_new("Mot de passe :");
+    lblCIN = gtk_label_new("CIN :");
+    lblIsAdmin= gtk_label_new("Admin :");
+    lblIsActive = gtk_label_new("Active :");
+    
+
+    switchIsActive = gtk_switch_new();
+    switchIsAdmin = gtk_switch_new();
+
+    entryUsername = gtk_entry_new();
+    entryPassword = gtk_entry_new();
+    entryFullName = gtk_entry_new();
+    entryCIN      = gtk_entry_new();
 
 
+
+    gtk_grid_attach(GTK_GRID(grid),lblFullName,0,0,1,1);
+    gtk_grid_attach(GTK_GRID(grid),entryFullName,1,0,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblUsername,0,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),entryUsername,1,1,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblPassword,0,2,1,1);
+    gtk_grid_attach(GTK_GRID(grid),entryPassword,1,2,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblCIN,0,3,1,1);
+    gtk_grid_attach(GTK_GRID(grid),entryCIN,1,3,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblIsAdmin,0,4,1,1);
+    gtk_grid_attach(GTK_GRID(grid),switchIsAdmin,1,4,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblIsActive,0,5,1,1);
+    gtk_grid_attach(GTK_GRID(grid),switchIsActive,1,5,1,1);
+    
+    gtk_grid_attach(GTK_GRID(grid),btnSave,0,6,1,1);
+    gtk_grid_attach(GTK_GRID(grid),btnCancel,1,6,1,1);
+
+
+    g_signal_connect(G_OBJECT(btnSave),"clicked",G_CALLBACK(users_subdialog_add_save),app);
+    g_signal_connect(G_OBJECT(btnCancel),"clicked",G_CALLBACK(users_subdialog_add_cancel),app);
+
+
+
+
+
+    gtk_container_add(GTK_CONTAINER(window),grid);
+
+
+    app->usersDialogAdd.window = window;
+    app->usersDialogAdd.entryFullName = entryFullName;
+    app->usersDialogAdd.entryUsername = entryUsername;
+    app->usersDialogAdd.entryPassword = entryPassword;
+    app->usersDialogAdd.entryCIN = entryCIN;
+    app->usersDialogAdd.switchIsActive = switchIsActive;
+    app->usersDialogAdd.switchIsAdmin = switchIsAdmin;
+
+
+
+
+    gtk_widget_show_all(window);
+}
+
+void users_subdialog_show(GtkWidget* widget,gpointer data){
+
+    users_subdialog_add((App*) data);
+}
+
+void users_subdialog_add_save(GtkWidget* widget,gpointer data){
+    App *app = (App*) data;
+    GtkTreeIter    iter;
+    gchar *username,*fullname,*password,*cin;
+    gboolean isActive,isAdmin;
+    Employee *e;
+    fullname = (gchar*) gtk_entry_get_text(GTK_ENTRY(app->usersDialogAdd.entryFullName));
+    username = (gchar*) gtk_entry_get_text(GTK_ENTRY(app->usersDialogAdd.entryUsername));
+    password = (gchar*) gtk_entry_get_text(GTK_ENTRY(app->usersDialogAdd.entryPassword));
+    cin      = (gchar*) gtk_entry_get_text(GTK_ENTRY(app->usersDialogAdd.entryCIN));
+    isActive = gtk_switch_get_active(GTK_SWITCH(app->usersDialogAdd.switchIsActive));
+    isAdmin = gtk_switch_get_active(GTK_SWITCH(app->usersDialogAdd.switchIsAdmin));
+
+    e = employee_new(fullname,cin,username,password,isAdmin,isActive);
+    employee_add(app->usersFile,e);
+    employee_free(e);
+    gtk_list_store_append (app->usersDialog.store, &iter);
+    gtk_list_store_set (app->usersDialog.store, &iter,
+                      COL_FNAME, fullname,
+                      COL_USERNAME, username,
+                      COL_PASSWORD, password,
+                      COL_CIN, cin,
+                      COL_ACTIVE, isActive,
+                      COL_ADMIN,isAdmin,
+                      -1);
+    gtk_window_close(GTK_WINDOW(app->usersDialogAdd.window));
+}
+
+void users_subdialog_add_cancel(GtkWidget *widget,gpointer data){
+    App *app = (App*) data;
+    gtk_window_close(GTK_WINDOW(app->usersDialogAdd.window));
+}
+
+
+void users_subdialog_edit(App *app){
+    GtkWidget   *window,
+                *btnSave,
+                *btnCancel,
+                *grid,
+                *lblUsername,
+                *lblPassword,
+                *lblFullName,
+                *lblCIN,
+                *lblIsAdmin,
+                *lblIsActive,
+                *switchIsAdmin,
+                *switchIsActive,
+                *entryUsername,
+                *entryPassword,
+                *entryCIN,
+                *entryFullName;
+
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_position(GTK_WINDOW(window),GTK_WIN_POS_CENTER);
+    gtk_window_set_title(GTK_WINDOW(window),"Editer un utilisateur");
+    gtk_window_set_modal(GTK_WINDOW(window),TRUE);
+    gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->usersDialog.window));
+
+    grid = gtk_grid_new();
+
+    btnSave = gtk_button_new_with_label("Enregistrer");
+    btnCancel = gtk_button_new_with_label("Annuler");
+
+    lblFullName = gtk_label_new("Nom complet :");
+    lblUsername = gtk_label_new("Nom de l'utilisateur :");
+    lblPassword = gtk_label_new("Mot de passe :");
+    lblCIN = gtk_label_new("CIN :");
+    lblIsAdmin= gtk_label_new("Admin :");
+    lblIsActive = gtk_label_new("Active :");
+    
+
+    switchIsActive = gtk_switch_new();
+    switchIsAdmin = gtk_switch_new();
+
+    entryUsername = gtk_entry_new();
+    entryPassword = gtk_entry_new();
+    entryFullName = gtk_entry_new();
+    entryCIN      = gtk_entry_new();
+
+
+
+    gtk_grid_attach(GTK_GRID(grid),lblFullName,0,0,1,1);
+    gtk_grid_attach(GTK_GRID(grid),entryFullName,1,0,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblUsername,0,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),entryUsername,1,1,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblPassword,0,2,1,1);
+    gtk_grid_attach(GTK_GRID(grid),entryPassword,1,2,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblCIN,0,3,1,1);
+    gtk_grid_attach(GTK_GRID(grid),entryCIN,1,3,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblIsAdmin,0,4,1,1);
+    gtk_grid_attach(GTK_GRID(grid),switchIsAdmin,1,4,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblIsActive,0,5,1,1);
+    gtk_grid_attach(GTK_GRID(grid),switchIsActive,1,5,1,1);
+    
+    gtk_grid_attach(GTK_GRID(grid),btnSave,0,6,1,1);
+    gtk_grid_attach(GTK_GRID(grid),btnCancel,1,6,1,1);
+
+
+    g_signal_connect(G_OBJECT(btnSave),"clicked",G_CALLBACK(users_subdialog_edit_save),app);
+    g_signal_connect(G_OBJECT(btnCancel),"clicked",G_CALLBACK(users_subdialog_edit_cancel),app);
+
+
+
+
+
+    gtk_container_add(GTK_CONTAINER(window),grid);
+
+
+    app->usersDialogEdit.window = window;
+    app->usersDialogEdit.entryFullName = entryFullName;
+    app->usersDialogEdit.entryUsername = entryUsername;
+    app->usersDialogEdit.entryPassword = entryPassword;
+    app->usersDialogEdit.entryCIN = entryCIN;
+    app->usersDialogEdit.switchIsActive = switchIsActive;
+    app->usersDialogEdit.switchIsAdmin = switchIsAdmin;
+
+
+
+
+    gtk_widget_show_all(window);
+}
+
+void users_subdialog_edit_show(GtkWidget *widget, gpointer data){
+    App *app = (App*) data;
+    GtkTreeIter    iter;
+    GtkTreeModel *model;
+    gchar *username,*fullname,*password,*cin;
+    gboolean isActive,isAdmin;
+    GtkTreeSelection * selection;
+
+    selection = gtk_tree_view_get_selection (GTK_TREE_VIEW(app->usersDialog.treeView));
+    app->usersDialogEdit.selection = selection;
+    gtk_tree_selection_get_selected(selection,&model,&iter);
+    
+    gtk_tree_model_get (model, &iter,
+                        COL_USERNAME, &username,
+                        COL_FNAME, &fullname,
+                        COL_PASSWORD, &password,
+                        COL_CIN,&cin,
+                        COL_ACTIVE,&isActive,
+                        COL_ADMIN,&isAdmin,
+                        -1);
+
+    users_subdialog_edit(app);
+    gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryFullName),fullname);
+    gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryUsername),username);
+    gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryPassword),password);
+    gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryCIN),cin);
+    gtk_switch_set_active(GTK_SWITCH(app->usersDialogEdit.switchIsActive),isActive);
+    gtk_switch_set_active(GTK_SWITCH(app->usersDialogEdit.switchIsAdmin),isAdmin);
+
+    g_free(fullname);
+    g_free(username);
+    g_free(password);
+    g_free(cin);
+}
+
+void users_subdialog_edit_save(GtkWidget* widget,gpointer data){
+    App *app = (App*) data;
+    GtkTreeIter    iter;
+    GtkTreeModel *model;
+    gchar *username,*fullname,*password,*cin;
+    gboolean isActive,isAdmin;
+    Employee *e;
+
+    fullname = (gchar*) gtk_entry_get_text(GTK_ENTRY(app->usersDialogEdit.entryFullName));
+    username = (gchar*) gtk_entry_get_text(GTK_ENTRY(app->usersDialogEdit.entryUsername));
+    password = (gchar*) gtk_entry_get_text(GTK_ENTRY(app->usersDialogEdit.entryPassword));
+    cin      = (gchar*) gtk_entry_get_text(GTK_ENTRY(app->usersDialogEdit.entryCIN));
+    isActive = gtk_switch_get_active(GTK_SWITCH(app->usersDialogEdit.switchIsActive));
+    isAdmin = gtk_switch_get_active(GTK_SWITCH(app->usersDialogEdit.switchIsAdmin));
+
+    e = employee_new(fullname,cin,username,password,isAdmin,isActive);
+    employee_edit(app->usersFile,username,e);
+    employee_free(e);
+    gtk_tree_selection_get_selected(app->usersDialogEdit.selection,&model,&iter);
+    gtk_list_store_set (app->usersDialog.store, &iter,
+                      COL_FNAME, fullname,
+                      COL_USERNAME, username,
+                      COL_PASSWORD, password,
+                      COL_CIN, cin,
+                      COL_ACTIVE, isActive,
+                      COL_ADMIN,isAdmin,
+                      -1);
+    gtk_window_close(GTK_WINDOW(app->usersDialogEdit.window));
+}
+
+void users_subdialog_edit_cancel(GtkWidget *widget,gpointer data){
+    App *app = (App*) data;
+    gtk_window_close(GTK_WINDOW(app->usersDialogAdd.window));
+}
 
 
 
