@@ -37,15 +37,13 @@ enum
 typedef struct {
      CategoryType type;
      ClientType client;
-    float price;
+    gdouble price;
 } Category;
 
 
 typedef struct {
     int id;
-    double price;
     Category category;
-    ClientType type;
 } Ticket;
 
 
@@ -89,7 +87,7 @@ char* date_time_get(void);
  13:34:56 56/11/2014 : ahmed (cin = AE345543) : a encaisser 567dh
  */
 
-int log_action(FILE *file, Employee *emp,Ticket* tkt,char *msg);
+int log_action(FILE *file, gchar*,int ,gchar*);
 
 int log_clear(FILE** file);
 
@@ -97,11 +95,11 @@ void log_init();
 
 // ------------------------- Caisse ----------------------//
 
-int caisse_add(FILE *file, double price);
+int caisse_add(FILE *file, gdouble price);
 
-int caisse_sub(FILE *file,double  price);
+int caisse_sub(FILE *file,gdouble  price);
 
-double caisse_get(FILE *file);
+gdouble caisse_get(FILE *file);
 
 
 //---------------------- Category --------------------//
@@ -109,9 +107,9 @@ double caisse_get(FILE *file);
 
 
 
-int category_set_price(FILE *file,  CategoryType type, ClientType ctype, float price);
+int category_set_price(FILE *file,  CategoryType type, ClientType ctype, gdouble price);
 
-double category_get_price(FILE *file,  CategoryType type,  ClientType ct);
+gdouble category_get_price(FILE *file,  CategoryType type,  ClientType ct);
 
 
 
@@ -142,7 +140,7 @@ int employee_edit(FILE *file, char *cin,Employee *emp);
 //------------- Ticket --------------//
 
 
-Ticket* ticket_new(FILE* file, double price, Category cat, ClientType client);
+Ticket* ticket_new(FILE* file, gdouble price, CategoryType cat, ClientType client);
 
 void ticket_free(Ticket * tkt);
 
@@ -158,10 +156,6 @@ int ticket_get_next_id(FILE* file);
 typedef struct 
 {
     GtkWidget *window;
-    GtkWidget *btnExit;
-    GtkWidget *btnSettings;
-    GtkWidget *btnLog;
-    GtkWidget *btnUsers;
 }MainWindow;
 
 typedef struct 
@@ -169,16 +163,12 @@ typedef struct
     GtkWidget *window;
     GtkWidget *txtUsername;
     GtkWidget *txtPassword;
-    GtkWidget *btnCancel;
-    GtkWidget *btnLogin;
 } LoginWindow;
 
 typedef struct 
 {
     GtkWidget *window;
     GtkWidget *textView;
-    GtkWidget *btnClose;
-    GtkWidget *btnClear;
 } LogDialog;
 
 typedef struct 
@@ -211,6 +201,33 @@ typedef struct
     GtkTreeSelection *selection;
 } UsersDialogEdit;
 
+
+
+typedef struct 
+{
+    GtkWidget   *window,
+                *spinCat1Normal,
+                *spinCat2Normal,
+                *spinCat3Normal,
+                *spinCat1Subscriber,
+                *spinCat2Subscriber,
+                *spinCat3Subscriber;
+} SettingsDialog;
+
+typedef struct 
+{
+    GtkWidget *window;
+
+}EmployeeWindow;
+
+typedef struct 
+{
+   GtkWidget    *window,
+                *radioNormal,
+                *radioSubscriber,
+                *comboCategory; 
+} TicketDialog;
+
 typedef struct 
 {
     MainWindow mainWindow;
@@ -219,10 +236,14 @@ typedef struct
     UsersDialog usersDialog;
     UsersDialogAdd usersDialogAdd;
     UsersDialogEdit usersDialogEdit;
+    SettingsDialog settingsDialog;
+    EmployeeWindow employeeWindow;
+    TicketDialog ticketDialog;
     FILE* configFile;
     FILE* usersFile;
     FILE* caisseFile;
     FILE* logFile;
+    Employee logedUser;
 } App;
 
 
@@ -266,6 +287,21 @@ void users_subdialog_edit_save(GtkWidget* widget,gpointer data);
 void users_subdialog_edit_cancel(GtkWidget *widget,gpointer data);
 
 
+void settings_dialog(App* app);
+void settings_dialog_show(GtkWidget *widget,gpointer data);
+void settings_dialog_save(GtkWidget *widget,gpointer data);
+void settings_dialog_cancel(GtkWidget *widget,gpointer data);
+
+
+
+void employee_window(App *app);
+void ticket_dialog(App *app);
+void ticket_dialog_show(GtkWidget *widget, gpointer data);
+void ticket_dialog_ok(GtkWidget* widget, gpointer data);
+void ticket_dialog_cancel(GtkWidget *widget, gpointer data);
+
+
+
 int main(int argc, char  *argv[])
 {
     App app;
@@ -301,32 +337,32 @@ void config_init(void){
     Category cat;
     cat.type = CAT1;
     cat.client = NORMAL;
-    cat.price = 10.0f;
+    cat.price = 10.0;
     c.cat1_normal = cat;
 
     cat.type = CAT2;
     cat.client = NORMAL;
-    cat.price = 15.0f;
+    cat.price = 15.0;
     c.cat2_normal = cat;
 
     cat.type = CAT3;
     cat.client = NORMAL;
-    cat.price = 20.0f;
+    cat.price = 20.0;
     c.cat3_normal = cat;
 
     cat.type = CAT1;
     cat.client = SUBSCRIBER;
-    cat.price = 7.0f;
+    cat.price = 7.0;
     c.cat1_subscriber = cat;
 
     cat.type = CAT2;
     cat.client = SUBSCRIBER;
-    cat.price = 10.0f;
+    cat.price = 10.0;
     c.cat2_subscriber = cat;
 
     cat.type = CAT3;
     cat.client = SUBSCRIBER;
-    cat.price = 13.0f;
+    cat.price = 13.0;
     c.cat3_subscriber = cat;
 
     fwrite(&c,sizeof(Configuration),1,file);
@@ -340,8 +376,8 @@ void casse_init(void){
         fprintf(stderr, "cannot open file : %s\n",CAISSE_FILE);
         return;
     }
-    double casse = 0;
-    fwrite(&casse,sizeof(double),1,file);
+    gdouble casse = 0;
+    fwrite(&casse,sizeof(gdouble),1,file);
     fclose(file);
 }
 
@@ -376,15 +412,16 @@ gchar* date_time_get(){
 }
 
 
-int log_action(FILE *file, Employee *emp,Ticket* tkt,char *msg){
+int log_action(FILE *file, gchar * username,int tktId,gchar *msg){
     
     gchar *time = date_time_get();
     
-    g_fprintf(file, "%s : user(%s) : ticket(%d) : %s \n",
+    g_fprintf(file, "%s : user( %s ) : ticket( %d ) : %s \n",
             time,
-            emp->username,
-            tkt->id,
+            username,
+            tktId,
             msg);
+    fflush(file);
     
     if(time){
         g_free(time);
@@ -400,8 +437,7 @@ int log_clear(FILE** file){
         *file = fopen(LOG_FILE, "a");
         return 1;
     }
-    return -1;
-    
+    return -1;  
 }
 
 
@@ -419,48 +455,50 @@ int log_get_text(FILE* file,char **text,int *len){
     return 1;
 }
 
-int caisse_add(FILE *file, double price){
+int caisse_add(FILE *file, gdouble price){
     if(!file){
         fprintf(stderr, "Error file not opened %s\n",CAISSE_FILE);
         return -1;
     }
-    double caisse;
+    gdouble caisse;
     fseek(file, 0, SEEK_SET);
-    fread(&caisse, sizeof(double), 1, file);
+    fread(&caisse, sizeof(gdouble), 1, file);
     caisse += price;
     fseek(file, 0, SEEK_SET);
-    fwrite(&caisse, sizeof(double), 1, file);
+    fwrite(&caisse, sizeof(gdouble), 1, file);
+    fflush(file);
     return 0;
 }
 
-int caisse_sub(FILE *file,double  price){
+int caisse_sub(FILE *file,gdouble  price){
     if(!file){
         fprintf(stderr, "Error file not opened %s\n",CAISSE_FILE);
         return -1;
     }
-    double caisse;
+    gdouble caisse;
     fseek(file, 0, SEEK_SET);
-    fread(&caisse, sizeof(double), 1, file);
+    fread(&caisse, sizeof(gdouble), 1, file);
     caisse -= price;
     fseek(file, 0, SEEK_SET);
-    fwrite(&caisse, sizeof(double), 1, file);
+    fwrite(&caisse, sizeof(gdouble), 1, file);
+    fflush(file);
     return 0;
 }
 
 
-double caisse_get(FILE *file){
+gdouble caisse_get(FILE *file){
     if(!file){
         fprintf(stderr, "Error file not opened %s\n",CAISSE_FILE);
         return -1;
     }
-    double caisse;
+    gdouble caisse;
     fseek(file, 0, SEEK_SET);
-    fread(&caisse, sizeof(double), 1, file);
+    fread(&caisse, sizeof(gdouble), 1, file);
     return caisse;
 }
 
 
-int category_set_price(FILE *file,  CategoryType catType, ClientType ctype, float price){
+int category_set_price(FILE *file,  CategoryType catType, ClientType ctype, gdouble price){
     if(!file){
         fprintf(stderr, "Error file not opened %s\n",CONFIG_FILE);
         return -1;
@@ -499,7 +537,7 @@ int category_set_price(FILE *file,  CategoryType catType, ClientType ctype, floa
 }
 
 
-double category_get_price(FILE *file,  CategoryType catType,  ClientType ct){
+gdouble category_get_price(FILE *file,  CategoryType catType,  ClientType ct){
     if(!file){
         fprintf(stderr, "Error file not opened %s\n",CONFIG_FILE);
         return -1;
@@ -610,12 +648,12 @@ int employee_edit(FILE *file, gchar *username,Employee *emp){
 }
 
 
-Ticket* ticket_new(FILE* file, double price, Category cat, ClientType client){
+Ticket* ticket_new(FILE* file, gdouble price, CategoryType cat, ClientType client){
     Ticket *tkt = (Ticket*) malloc(sizeof(Ticket));
     tkt->id = ticket_get_next_id(file);
-    tkt->price = price;
-    tkt->category = cat;
-    tkt->type = client;
+    tkt->category.type = cat;
+    tkt->category.client = client;
+    tkt->category.price = price;
     return tkt;
 }
 
@@ -687,15 +725,11 @@ void admin_window(App *app){
     g_signal_connect(btnExit, "clicked",G_CALLBACK(gtk_main_quit), NULL); 
     g_signal_connect(btnLog, "clicked",G_CALLBACK(show_log), (gpointer) app); 
     g_signal_connect(btnUsers, "clicked",G_CALLBACK(show_users_dialog), (gpointer) app); 
+    g_signal_connect(btnSettings, "clicked",G_CALLBACK(settings_dialog_show), (gpointer) app); 
 
 
 
     app->mainWindow.window = window;
-    app->mainWindow.btnExit = btnExit;
-    app->mainWindow.btnSettings = btnSettings;
-    app->mainWindow.btnLog = btnLog;
-    app->mainWindow.btnUsers = btnUsers;
-
 
     gtk_widget_show_all(window);    
 }
@@ -759,8 +793,6 @@ void login_window(App *app){
     app->loginWindow.window = loginWindow;
     app->loginWindow.txtUsername = txtUsername;
     app->loginWindow.txtPassword = txtPassword;
-    app->loginWindow.btnLogin = btnLogin;
-    app->loginWindow.btnCancel = btnCancel;
 
     gtk_widget_show_all(loginWindow);
 }
@@ -775,12 +807,37 @@ void login(GtkWidget* widget, gpointer data){
 
     if(employee_exist(app->usersFile,username)){
         emp = employee_get(app->usersFile,username);
-        if (strcmp(emp->password,password) == 0 && emp->isActive)
+        if (strcmp(emp->password,password) == 0)
         {
-            admin_window(app);
-            gtk_widget_hide(app->loginWindow.window);
+            if (emp->isActive)
+            {
+                app->logedUser = (*emp);
+                log_action(app->logFile,username,-1,"connexion avec succès");
+                if (emp->isAdmin)
+                {
+                    admin_window(app);
+                }else{
+                    // normal user
+                    employee_window(app);
+                }
+
+                gtk_widget_hide(app->loginWindow.window);
+
+            }else{
+                log_action(app->logFile,username,-1,"échec de la connexion");
+                GtkWidget * dialog = gtk_message_dialog_new (GTK_WINDOW(app->loginWindow.window),
+                            GTK_DIALOG_MODAL,
+                            GTK_MESSAGE_ERROR,
+                            GTK_BUTTONS_OK,
+                            "Votre compte est desactivé veuillez contacter votre administrateur");
+                gtk_dialog_run(GTK_DIALOG(dialog));
+                gtk_widget_destroy(dialog);
+            }
+            
+            
 
         }else{
+            log_action(app->logFile,username,-1,"échec de la connexion");
             GtkWidget * dialog = gtk_message_dialog_new (GTK_WINDOW(app->loginWindow.window),
                         GTK_DIALOG_MODAL,
                         GTK_MESSAGE_ERROR,
@@ -792,6 +849,8 @@ void login(GtkWidget* widget, gpointer data){
         employee_free(emp);
 
     }else{
+
+            log_action(app->logFile,username,-1,"échec de la connexion");
             GtkWidget * dialog = gtk_message_dialog_new (GTK_WINDOW(app->loginWindow.window),
                         GTK_DIALOG_MODAL,
                         GTK_MESSAGE_ERROR,
@@ -894,8 +953,6 @@ void log_dialog(App *app){
 
     app->logDialog.window = window;
     app->logDialog.textView = textView;
-    app->logDialog.btnClose = btnClose;
-    app->logDialog.btnClear = btnClear;
 
     gtk_widget_show_all(window);
 }
@@ -1176,6 +1233,7 @@ void users_subdialog_add_save(GtkWidget* widget,gpointer data){
                       COL_ACTIVE, isActive,
                       COL_ADMIN,isAdmin,
                       -1);
+    log_action(app->logFile,app->logedUser.username,-1,"Ajout d'un utilisateur");
     gtk_window_close(GTK_WINDOW(app->usersDialogAdd.window));
 }
 
@@ -1288,30 +1346,33 @@ void users_subdialog_edit_show(GtkWidget *widget, gpointer data){
 
     selection = gtk_tree_view_get_selection (GTK_TREE_VIEW(app->usersDialog.treeView));
     app->usersDialogEdit.selection = selection;
-    gtk_tree_selection_get_selected(selection,&model,&iter);
     
-    gtk_tree_model_get (model, &iter,
-                        COL_USERNAME, &username,
-                        COL_FNAME, &fullname,
-                        COL_PASSWORD, &password,
-                        COL_CIN,&cin,
-                        COL_ACTIVE,&isActive,
-                        COL_ADMIN,&isAdmin,
-                        -1);
+    if (gtk_tree_selection_get_selected(selection,&model,&iter)){
+            gtk_tree_model_get (model, &iter,
+                                COL_USERNAME, &username,
+                                COL_FNAME, &fullname,
+                                COL_PASSWORD, &password,
+                                COL_CIN,&cin,
+                                COL_ACTIVE,&isActive,
+                                COL_ADMIN,&isAdmin,
+                                -1);
 
-    users_subdialog_edit(app);
-    gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryFullName),fullname);
-    gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryUsername),username);
-    gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryPassword),password);
-    gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryCIN),cin);
-    gtk_switch_set_active(GTK_SWITCH(app->usersDialogEdit.switchIsActive),isActive);
-    gtk_switch_set_active(GTK_SWITCH(app->usersDialogEdit.switchIsAdmin),isAdmin);
+            users_subdialog_edit(app);
+            gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryFullName),fullname);
+            gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryUsername),username);
+            gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryPassword),password);
+            gtk_entry_set_text(GTK_ENTRY(app->usersDialogEdit.entryCIN),cin);
+            gtk_switch_set_active(GTK_SWITCH(app->usersDialogEdit.switchIsActive),isActive);
+            gtk_switch_set_active(GTK_SWITCH(app->usersDialogEdit.switchIsAdmin),isAdmin);
 
-    g_free(fullname);
-    g_free(username);
-    g_free(password);
-    g_free(cin);
-}
+            g_free(fullname);
+            g_free(username);
+            g_free(password);
+            g_free(cin);
+        }
+    }
+    
+    
 
 void users_subdialog_edit_save(GtkWidget* widget,gpointer data){
     App *app = (App*) data;
@@ -1340,6 +1401,7 @@ void users_subdialog_edit_save(GtkWidget* widget,gpointer data){
                       COL_ACTIVE, isActive,
                       COL_ADMIN,isAdmin,
                       -1);
+    log_action(app->logFile,app->logedUser.username,-1,"Modification d'un utilisateur");
     gtk_window_close(GTK_WINDOW(app->usersDialogEdit.window));
 }
 
@@ -1348,15 +1410,296 @@ void users_subdialog_edit_cancel(GtkWidget *widget,gpointer data){
     gtk_window_close(GTK_WINDOW(app->usersDialogAdd.window));
 }
 
+void settings_dialog(App* app){
+    GtkWidget   *window,
+                *grid,
+                *lblCat1,
+                *lblCat2,
+                *lblCat3,
+                *lblSubscriber,
+                *lblNormal,
+                *spinCat1Normal,
+                *spinCat2Normal,
+                *spinCat3Normal,
+                *spinCat1Subscriber,
+                *spinCat2Subscriber,
+                *spinCat3Subscriber,
+                *btnSave,
+                *btnCancel;
+
+
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_position(GTK_WINDOW(window),GTK_WIN_POS_CENTER);
+    gtk_window_set_title(GTK_WINDOW(window),"Paramètres");
+    gtk_window_set_modal(GTK_WINDOW(window),TRUE);
+    gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->mainWindow.window));
+    gtk_container_set_border_width(GTK_CONTAINER(window),10);
+
+    grid = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(grid),10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
+
+    btnSave = gtk_button_new_with_label("Enregistrer");
+    btnCancel = gtk_button_new_with_label("Annuler");
+
+    lblCat1 = gtk_label_new("Prix (Categorie 1)");
+    lblCat2 = gtk_label_new("Prix (Categorie 2)");
+    lblCat3 = gtk_label_new("Prix (Categorie 3)");
+    lblSubscriber = gtk_label_new("Client Abonné");
+    lblNormal = gtk_label_new("Client Normale");
+
+    spinCat1Normal = gtk_spin_button_new_with_range(0.0,1000.0,0.5);
+    spinCat2Normal = gtk_spin_button_new_with_range(0.0,1000.0,0.5);
+    spinCat3Normal = gtk_spin_button_new_with_range(0.0,1000.0,0.5);
+    spinCat1Subscriber = gtk_spin_button_new_with_range(0.0,1000.0,0.5);
+    spinCat2Subscriber = gtk_spin_button_new_with_range(0.0,1000.0,0.5);
+    spinCat3Subscriber = gtk_spin_button_new_with_range(0.0,1000.0,0.5);
+
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(spinCat1Normal) ,
+                             category_get_price(app->configFile,CAT1,NORMAL)
+                             );
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(spinCat2Normal) ,
+                             category_get_price(app->configFile,CAT2,NORMAL)
+                             );
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(spinCat3Normal) ,
+                             category_get_price(app->configFile,CAT3,NORMAL)
+                             );
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(spinCat1Subscriber) ,
+                             category_get_price(app->configFile,CAT1,SUBSCRIBER)
+                             );
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(spinCat2Subscriber) ,
+                             category_get_price(app->configFile,CAT2,SUBSCRIBER)
+                             );
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(spinCat3Subscriber) ,
+                             category_get_price(app->configFile,CAT3,SUBSCRIBER)
+                             );
+
+
+
+
+    gtk_grid_attach(GTK_GRID(grid),lblNormal,1,0,1,1);
+    gtk_grid_attach(GTK_GRID(grid),lblSubscriber,2,0,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblCat1,0,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),spinCat1Normal,1,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),spinCat1Subscriber,2,1,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblCat2,0,2,1,1);
+    gtk_grid_attach(GTK_GRID(grid),spinCat2Normal,1,2,1,1);
+    gtk_grid_attach(GTK_GRID(grid),spinCat2Subscriber,2,2,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblCat3,0,3,1,1);
+    gtk_grid_attach(GTK_GRID(grid),spinCat3Normal,1,3,1,1);
+    gtk_grid_attach(GTK_GRID(grid),spinCat3Subscriber,2,3,1,1);
+    
+    gtk_grid_attach(GTK_GRID(grid),btnSave,1,4,1,1);
+    gtk_grid_attach(GTK_GRID(grid),btnCancel,2,4,1,1);
+
+
+    g_signal_connect(G_OBJECT(btnSave),"clicked",G_CALLBACK(settings_dialog_save),app);
+    g_signal_connect(G_OBJECT(btnCancel),"clicked",G_CALLBACK(settings_dialog_cancel),app);
 
 
 
 
 
+    gtk_container_add(GTK_CONTAINER(window),grid);
+
+
+    app->settingsDialog.window = window;
+    app->settingsDialog.spinCat1Normal = spinCat1Normal;
+    app->settingsDialog.spinCat2Normal = spinCat2Normal;
+    app->settingsDialog.spinCat3Normal = spinCat3Normal;
+    app->settingsDialog.spinCat1Subscriber = spinCat1Subscriber;
+    app->settingsDialog.spinCat2Subscriber = spinCat2Subscriber;
+    app->settingsDialog.spinCat3Subscriber = spinCat3Subscriber;
 
 
 
 
+    gtk_widget_show_all(window);
+}
+
+void settings_dialog_show(GtkWidget *widget,gpointer data){
+
+
+    settings_dialog((App*) data);
+}
+
+void settings_dialog_save(GtkWidget *widget,gpointer data){
+    App *app = (App*) data;
+
+    category_set_price(app->configFile,CAT1,NORMAL,
+       gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->settingsDialog.spinCat1Normal)));
+
+    category_set_price(app->configFile,CAT2,NORMAL,
+       gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->settingsDialog.spinCat2Normal)));
+    category_set_price(app->configFile,CAT3,NORMAL,
+       gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->settingsDialog.spinCat3Normal)));
+
+    category_set_price(app->configFile,CAT1,SUBSCRIBER,
+       gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->settingsDialog.spinCat1Subscriber)));
+    category_set_price(app->configFile,CAT2,SUBSCRIBER,
+       gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->settingsDialog.spinCat2Subscriber)));
+    category_set_price(app->configFile,CAT3,SUBSCRIBER,
+       gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->settingsDialog.spinCat3Subscriber)));
+    
+    log_action(app->logFile,app->logedUser.username,-1,"Changement des Paramètres");
+    settings_dialog_cancel(NULL,app);
+}
+
+void settings_dialog_cancel(GtkWidget *widget,gpointer data){
+    App *app = (App*) data;
+    gtk_window_close(GTK_WINDOW(app->settingsDialog.window));
+}
+
+
+void employee_window(App *app){
+    GtkWidget   *window,
+                *image,
+                *vbox,
+                *btnExit,
+                *btnCheckOut,
+                *btnTicket;
+
+
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_default_size(GTK_WINDOW(window),900,600);
+    gtk_window_maximize(GTK_WINDOW(window));
+    gtk_window_set_position(GTK_WINDOW(window),GTK_WIN_POS_CENTER);
+
+    vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
+
+    btnTicket = gtk_button_new();
+    image = gtk_image_new_from_file("img/ticket.png");
+    gtk_button_set_image(GTK_BUTTON(btnTicket),image);
+    gtk_box_pack_start(GTK_BOX(vbox),btnTicket,TRUE,FALSE,0);
+
+    btnCheckOut = gtk_button_new();
+    image = gtk_image_new_from_file("img/checkout.png");
+    gtk_button_set_image(GTK_BUTTON(btnCheckOut),image);
+    gtk_box_pack_start(GTK_BOX(vbox),btnCheckOut,TRUE,FALSE,0);
+
+
+
+    btnExit = gtk_button_new();
+    image = gtk_image_new_from_file("img/exit.png");
+    gtk_button_set_image(GTK_BUTTON(btnExit),image);
+    gtk_box_pack_start(GTK_BOX(vbox),btnExit,TRUE,FALSE,20);
+
+    gtk_container_add(GTK_CONTAINER (window), vbox);
+
+    g_signal_connect(window, "destroy",G_CALLBACK(gtk_main_quit), NULL); 
+    g_signal_connect(btnExit, "clicked",G_CALLBACK(gtk_main_quit), NULL); 
+    g_signal_connect(btnTicket, "clicked",G_CALLBACK(ticket_dialog_show), (gpointer) app); 
+    //g_signal_connect(btnCheckOut, "clicked",G_CALLBACK(settings_dialog_show), (gpointer) app); 
+
+
+    app->employeeWindow.window = window;
+    gtk_widget_show_all(window);    
+}
+
+void ticket_dialog(App *app){
+    GtkWidget   *window,
+                *grid,
+                *radioSubscriber,
+                *radioNormal,
+                *comboCategory,
+                *lblCategory,
+                *lblClientType,
+                *btnOK,
+                *btnCancel;
+
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_position(GTK_WINDOW(window),GTK_WIN_POS_CENTER);
+    gtk_window_set_title(GTK_WINDOW(window),"Retirer un ticket");
+    gtk_window_set_modal(GTK_WINDOW(window),TRUE);
+    gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->employeeWindow.window));
+    gtk_container_set_border_width(GTK_CONTAINER(window),10);
+
+    grid = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(grid),10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
+
+    btnOK = gtk_button_new_with_label("Retirer");
+    btnCancel = gtk_button_new_with_label("Annuler");
+
+    lblCategory = gtk_label_new("Categorie");
+    lblClientType = gtk_label_new("Type de client");
+
+    radioNormal = gtk_radio_button_new_with_label(NULL,"Client normale");
+    GSList *group = gtk_radio_button_get_group (GTK_RADIO_BUTTON(radioNormal));
+    radioSubscriber = gtk_radio_button_new_with_label(group,"Client Abonné");
+
+    comboCategory = gtk_combo_box_text_new();
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(comboCategory),"Categorie 1");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(comboCategory),"Categorie 2");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(comboCategory),"Categorie 3");
+    gtk_combo_box_set_active(GTK_COMBO_BOX(comboCategory),0);
+
+
+    gtk_grid_attach(GTK_GRID(grid),lblCategory,0,0,1,1);
+    gtk_grid_attach(GTK_GRID(grid),comboCategory,1,0,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblClientType,0,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),radioNormal,1,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),radioSubscriber,1,2,1,1);
+    
+    gtk_grid_attach(GTK_GRID(grid),btnOK,0,3,1,1);
+    gtk_grid_attach(GTK_GRID(grid),btnCancel,1,3,1,1);
+
+
+    g_signal_connect(G_OBJECT(btnOK),"clicked",G_CALLBACK(ticket_dialog_ok),app);
+    g_signal_connect(G_OBJECT(btnCancel),"clicked",G_CALLBACK(ticket_dialog_cancel),app);
+
+
+
+
+
+    gtk_container_add(GTK_CONTAINER(window),grid);
+
+
+    app->ticketDialog.window = window;
+    app->ticketDialog.radioNormal = radioNormal;
+    app->ticketDialog.radioSubscriber = radioSubscriber;
+    app->ticketDialog.comboCategory = comboCategory;
+
+    gtk_widget_show_all(window);
+
+
+}
+
+void ticket_dialog_show(GtkWidget *widget, gpointer data){
+
+    ticket_dialog((App*) data);
+}
+
+void ticket_dialog_ok(GtkWidget* widget, gpointer data){
+    App *app=(App*) data;
+    CategoryType cat;
+    ClientType ct;
+    Ticket *tkt;
+    cat= gtk_combo_box_get_active(GTK_COMBO_BOX(app->ticketDialog.comboCategory));
+    
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->ticketDialog.radioNormal)))
+    {
+        ct = NORMAL;
+    }else{
+        ct = SUBSCRIBER;
+    }
+    gdouble catPrice = category_get_price(app->configFile,cat,ct);
+    tkt = ticket_new(app->configFile,catPrice,cat,ct);
+    caisse_add(app->caisseFile,catPrice);
+    ticket_free(tkt);
+    g_print("%lf\n",caisse_get(app->caisseFile));
+    gtk_window_close(GTK_WINDOW(app->ticketDialog.window));
+
+}
+
+void ticket_dialog_cancel(GtkWidget *widget, gpointer data){
+
+    gtk_window_close(GTK_WINDOW( ((App*) data)->ticketDialog.window ));
+}
 
 
 
