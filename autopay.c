@@ -230,6 +230,12 @@ typedef struct
 
 typedef struct 
 {
+    GtkWidget   *window,
+                *spinCurrentPrice;
+} CheckOutDialog;
+
+typedef struct 
+{
     MainWindow mainWindow;
     LoginWindow loginWindow;
     LogDialog logDialog;
@@ -239,6 +245,7 @@ typedef struct
     SettingsDialog settingsDialog;
     EmployeeWindow employeeWindow;
     TicketDialog ticketDialog;
+    CheckOutDialog checkOutDialog;
     FILE* configFile;
     FILE* usersFile;
     FILE* caisseFile;
@@ -299,6 +306,11 @@ void ticket_dialog(App *app);
 void ticket_dialog_show(GtkWidget *widget, gpointer data);
 void ticket_dialog_ok(GtkWidget* widget, gpointer data);
 void ticket_dialog_cancel(GtkWidget *widget, gpointer data);
+
+void checkout_dialog(App*);
+void checkout_dialog_show(GtkWidget*, gpointer*);
+void checkout_dialog_ok(GtkWidget*, gpointer*);
+void checkout_dialog_cancel(GtkWidget*, gpointer*);
 
 
 
@@ -1592,7 +1604,7 @@ void employee_window(App *app){
     g_signal_connect(window, "destroy",G_CALLBACK(gtk_main_quit), NULL); 
     g_signal_connect(btnExit, "clicked",G_CALLBACK(gtk_main_quit), NULL); 
     g_signal_connect(btnTicket, "clicked",G_CALLBACK(ticket_dialog_show), (gpointer) app); 
-    //g_signal_connect(btnCheckOut, "clicked",G_CALLBACK(settings_dialog_show), (gpointer) app); 
+    g_signal_connect(btnCheckOut, "clicked",G_CALLBACK(checkout_dialog_show), (gpointer) app); 
 
 
     app->employeeWindow.window = window;
@@ -1690,8 +1702,9 @@ void ticket_dialog_ok(GtkWidget* widget, gpointer data){
     gdouble catPrice = category_get_price(app->configFile,cat,ct);
     tkt = ticket_new(app->configFile,catPrice,cat,ct);
     caisse_add(app->caisseFile,catPrice);
+    log_action(app->logFile,app->logedUser.username,tkt->id,"Retirer un Ticket");
     ticket_free(tkt);
-    g_print("%lf\n",caisse_get(app->caisseFile));
+
     gtk_window_close(GTK_WINDOW(app->ticketDialog.window));
 
 }
@@ -1701,6 +1714,99 @@ void ticket_dialog_cancel(GtkWidget *widget, gpointer data){
     gtk_window_close(GTK_WINDOW( ((App*) data)->ticketDialog.window ));
 }
 
+
+void checkout_dialog(App *app){
+    GtkWidget   *window,
+                *grid,
+                *spinCurrentPrice,
+                *lblCurrentPrice,
+                *lblCaisse,
+                *lblPrice,
+                *btnOK,
+                *btnCancel;
+    gdouble currentCaissePrice=0.0;
+
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_position(GTK_WINDOW(window),GTK_WIN_POS_CENTER);
+    gtk_window_set_title(GTK_WINDOW(window),"encaisser");
+    gtk_window_set_modal(GTK_WINDOW(window),TRUE);
+    gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->employeeWindow.window));
+    gtk_container_set_border_width(GTK_CONTAINER(window),10);
+
+    grid = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(grid),10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
+
+    btnOK = gtk_button_new_with_label("Ok");
+    btnCancel = gtk_button_new_with_label("Annuler");
+
+
+    currentCaissePrice = caisse_get(app->caisseFile);
+    gchar *strPrice = g_strdup_printf("%.2lf",currentCaissePrice);
+    lblCurrentPrice = gtk_label_new(strPrice);
+    g_free(strPrice);
+
+    lblPrice = gtk_label_new("Prix à encaisser :");
+    lblCaisse = gtk_label_new("Montant à la caisse :");
+
+    spinCurrentPrice = gtk_spin_button_new_with_range(0.0,1000000.0,0.5);
+
+
+    gtk_grid_attach(GTK_GRID(grid),lblCaisse,0,0,1,1);
+    gtk_grid_attach(GTK_GRID(grid),lblCurrentPrice,1,0,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),lblPrice,0,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),spinCurrentPrice,1,1,1,1);    
+    gtk_grid_attach(GTK_GRID(grid),btnOK,0,2,1,1);
+    gtk_grid_attach(GTK_GRID(grid),btnCancel,1,2,1,1);
+
+
+    g_signal_connect(G_OBJECT(btnOK),"clicked",G_CALLBACK(checkout_dialog_ok),app);
+    g_signal_connect(G_OBJECT(btnCancel),"clicked",G_CALLBACK(checkout_dialog_cancel),app);
+
+
+
+
+
+    gtk_container_add(GTK_CONTAINER(window),grid);
+
+
+    app->checkOutDialog.window = window;
+    app->checkOutDialog.spinCurrentPrice = spinCurrentPrice;
+
+    gtk_widget_show_all(window);
+
+}
+
+
+void checkout_dialog_show(GtkWidget* widget, gpointer* data){
+
+    checkout_dialog((App*) data);
+}
+void checkout_dialog_ok(GtkWidget* widget, gpointer* data){
+    App *app = (App*) data;
+    gdouble caissePrice = caisse_get(app->caisseFile);
+    gdouble priceToCheckOut = gtk_spin_button_get_value(GTK_SPIN_BUTTON(app->checkOutDialog.spinCurrentPrice));
+    if ( caissePrice < priceToCheckOut)
+    {
+        GtkWidget * dialog = gtk_message_dialog_new (GTK_WINDOW(app->checkOutDialog.window),
+                    GTK_DIALOG_MODAL,
+                    GTK_MESSAGE_ERROR,
+                    GTK_BUTTONS_OK,
+                    "Le montant à la caisse est insuffisant");
+        gtk_dialog_run(GTK_DIALOG(dialog));
+        gtk_widget_destroy(dialog);
+    }else{
+        caisse_sub(app->caisseFile,priceToCheckOut);
+        log_action(app->logFile,app->logedUser.username,-1,"Encaissement");
+        checkout_dialog_cancel(NULL,(gpointer) app);
+    }
+}
+
+void checkout_dialog_cancel(GtkWidget* widget, gpointer* data) {
+    App *app = (App*) data;
+    gtk_window_close(GTK_WINDOW(app->checkOutDialog.window));
+}
 
 
 
