@@ -251,6 +251,7 @@ typedef struct
     FILE* caisseFile;
     FILE* logFile;
     Employee logedUser;
+    gchar* oldUsername;// the user that can be edited
 } App;
 
 
@@ -655,6 +656,7 @@ int employee_edit(FILE *file, gchar *username,Employee *emp){
         pos = employee_get_pos(file, username);
         fseek(file, sizeof(Employee) * (pos-1), SEEK_SET);
         fwrite(emp, sizeof(Employee), 1, file);
+        return pos;
     }
     return -1;
 }
@@ -700,7 +702,10 @@ void admin_window(App *app){
                 *btnExit,
                 *btnSettings,
                 *btnLog,
-                *btnUsers;
+                *btnUsers,
+                *lblUser;
+
+    PangoFontDescription *font_desc;
 
 
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -710,10 +715,19 @@ void admin_window(App *app){
 
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
 
+    gchar * userWelcome = g_strdup_printf("Bonjour : %s",app->logedUser.username);
+    lblUser = gtk_label_new(userWelcome);
+    g_free(userWelcome);
+    font_desc = pango_font_description_from_string ("Arimo bold 30");
+    gtk_widget_override_font (lblUser, font_desc);
+    pango_font_description_free (font_desc);
+    gtk_box_pack_start(GTK_BOX(vbox),lblUser,TRUE,FALSE,0);
+
     btnLog = gtk_button_new();
     image = gtk_image_new_from_file("img/log.png");
     gtk_button_set_image(GTK_BUTTON(btnLog),image);
     gtk_box_pack_start(GTK_BOX(vbox),btnLog,TRUE,FALSE,0);
+    
 
     btnUsers = gtk_button_new();
     image = gtk_image_new_from_file("img/users.png");
@@ -756,19 +770,36 @@ void login_window(App *app){
                 *btnLogin,
                 *grid,
                 *hbox,
+                *image,
                 *vbox;
 
 
     loginWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_position(GTK_WINDOW(loginWindow),GTK_WIN_POS_CENTER_ALWAYS);
     gtk_window_set_resizable(GTK_WINDOW(loginWindow),FALSE);
+    gtk_container_set_border_width(GTK_CONTAINER(loginWindow),10);
 
+
+
+    image = gtk_image_new_from_file("img/login_logo.png");
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL,10);
     hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
     grid = gtk_grid_new();
+
+
+    gtk_grid_set_row_spacing(GTK_GRID(grid),10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
+
     
     lblUsername = gtk_label_new("Username");
     lblPassword = gtk_label_new("Password");
+
+
+    gtk_label_set_justify(GTK_LABEL(lblUsername), GTK_JUSTIFY_LEFT);
+    gtk_label_set_justify(GTK_LABEL(lblPassword), GTK_JUSTIFY_LEFT);
+
+
+
     txtUsername = gtk_entry_new();
     txtPassword = gtk_entry_new();
     gtk_entry_set_visibility(GTK_ENTRY(txtPassword),FALSE);
@@ -776,13 +807,16 @@ void login_window(App *app){
     btnCancel   = gtk_button_new_with_label("Cancel");
     btnLogin    = gtk_button_new_with_label("Login");
 
-    gtk_box_pack_start(GTK_BOX(hbox), btnCancel,TRUE,TRUE,0);
     gtk_box_pack_start(GTK_BOX(hbox), btnLogin,TRUE,TRUE,0);
+    gtk_box_pack_start(GTK_BOX(hbox), btnCancel,TRUE,TRUE,0);
+    
    
-    gtk_grid_attach(GTK_GRID(grid),lblUsername,0,0,1,1);
-    gtk_grid_attach(GTK_GRID(grid),lblPassword,0,1,1,1);
-    gtk_grid_attach(GTK_GRID(grid),txtUsername,1,0,1,1);
-    gtk_grid_attach(GTK_GRID(grid),txtPassword,1,1,1,1);
+
+    gtk_grid_attach(GTK_GRID(grid),image,0,0,2,1);
+    gtk_grid_attach(GTK_GRID(grid),lblUsername,0,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),lblPassword,0,2,1,1);
+    gtk_grid_attach(GTK_GRID(grid),txtUsername,1,1,1,1);
+    gtk_grid_attach(GTK_GRID(grid),txtPassword,1,2,1,1);
 
     gtk_grid_set_row_spacing(GTK_GRID(grid),10);
     gtk_grid_set_column_spacing(GTK_GRID(grid),10);
@@ -946,12 +980,14 @@ void log_dialog(App *app){
     gtk_window_set_modal(GTK_WINDOW(window),TRUE);
     gtk_window_set_position(GTK_WINDOW(window),GTK_WIN_POS_CENTER);
     gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->mainWindow.window));
-
+    gtk_container_set_border_width(GTK_CONTAINER(window),5);
 
     gtk_container_add(GTK_CONTAINER(scrollWindow), textView);
 
     gtk_box_pack_start(GTK_BOX(hbox),btnClear,FALSE,FALSE,5);
     gtk_box_pack_start(GTK_BOX(hbox), btnClose,FALSE,FALSE,5);
+    gtk_container_set_border_width(GTK_CONTAINER(hbox),10);
+    gtk_box_set_spacing(GTK_BOX(hbox),10);
     
     gtk_box_pack_start(GTK_BOX(vbox), hbox,FALSE,FALSE,0);
     gtk_box_pack_start(GTK_BOX(vbox), scrollWindow,TRUE,TRUE,0);
@@ -1010,7 +1046,8 @@ void users_dialog(App* app){
     btnAdd = gtk_button_new_with_label("Ajouter");
     scrollWindow = gtk_scrolled_window_new(NULL,NULL);
 
-
+    gtk_container_set_border_width(GTK_CONTAINER(hbox),10);
+    gtk_box_set_spacing(GTK_BOX(hbox),10);
 
     store = gtk_list_store_new (NUM_COLS, G_TYPE_STRING,
                                           G_TYPE_STRING,
@@ -1038,6 +1075,8 @@ void users_dialog(App* app){
     }
 
     cellRendrer = gtk_cell_renderer_text_new();
+    gtk_cell_renderer_set_padding(cellRendrer,10,10);
+
     treeView = gtk_tree_view_new();
     gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (treeView),
                                                -1,      
@@ -1059,7 +1098,7 @@ void users_dialog(App* app){
                                                NULL);
     gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (treeView),
                                                -1,      
-                                               "CIN",  
+                                            "CIN",  
                                                cellRendrer,
                                                "text", COL_CIN,
                                                NULL);
@@ -1077,6 +1116,8 @@ void users_dialog(App* app){
                                                NULL);
     gtk_tree_view_set_model (GTK_TREE_VIEW (treeView), GTK_TREE_MODEL(store));
     g_object_unref (store);
+
+
 
     gtk_window_set_title(GTK_WINDOW(window), "Utilisateurs");
     gtk_window_set_default_size(GTK_WINDOW(window),900,600);
@@ -1109,8 +1150,6 @@ void users_dialog(App* app){
 
     gtk_widget_show_all(window);
 }
-
-
 
 void show_users_dialog(GtkWidget *widget, gpointer data){
     App *app = (App*) data;
@@ -1145,6 +1184,7 @@ void users_subdialog_add(App *app){
     gtk_window_set_title(GTK_WINDOW(window),"Ajouter un utilisateur");
     gtk_window_set_modal(GTK_WINDOW(window),TRUE);
     gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->usersDialog.window));
+    gtk_container_set_border_width(GTK_CONTAINER(window),10);
 
     grid = gtk_grid_new();
 
@@ -1157,6 +1197,15 @@ void users_subdialog_add(App *app){
     lblCIN = gtk_label_new("CIN :");
     lblIsAdmin= gtk_label_new("Admin :");
     lblIsActive = gtk_label_new("Active :");
+
+    gtk_widget_set_halign((lblFullName), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblUsername), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblPassword), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblCIN), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblIsActive), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblIsAdmin), GTK_ALIGN_START);
+
+
     
 
     switchIsActive = gtk_switch_new();
@@ -1168,6 +1217,9 @@ void users_subdialog_add(App *app){
     entryCIN      = gtk_entry_new();
 
 
+
+    gtk_grid_set_row_spacing(GTK_GRID(grid),10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
 
     gtk_grid_attach(GTK_GRID(grid),lblFullName,0,0,1,1);
     gtk_grid_attach(GTK_GRID(grid),entryFullName,1,0,1,1);
@@ -1278,6 +1330,8 @@ void users_subdialog_edit(App *app){
     gtk_window_set_title(GTK_WINDOW(window),"Editer un utilisateur");
     gtk_window_set_modal(GTK_WINDOW(window),TRUE);
     gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->usersDialog.window));
+    gtk_container_set_border_width(GTK_CONTAINER(window),10);
+
 
     grid = gtk_grid_new();
 
@@ -1290,6 +1344,15 @@ void users_subdialog_edit(App *app){
     lblCIN = gtk_label_new("CIN :");
     lblIsAdmin= gtk_label_new("Admin :");
     lblIsActive = gtk_label_new("Active :");
+
+
+
+    gtk_widget_set_halign((lblFullName), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblUsername), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblPassword), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblCIN), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblIsActive), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblIsAdmin), GTK_ALIGN_START);
     
 
     switchIsActive = gtk_switch_new();
@@ -1301,6 +1364,8 @@ void users_subdialog_edit(App *app){
     entryCIN      = gtk_entry_new();
 
 
+    gtk_grid_set_row_spacing(GTK_GRID(grid),10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
 
     gtk_grid_attach(GTK_GRID(grid),lblFullName,0,0,1,1);
     gtk_grid_attach(GTK_GRID(grid),entryFullName,1,0,1,1);
@@ -1377,8 +1442,9 @@ void users_subdialog_edit_show(GtkWidget *widget, gpointer data){
             gtk_switch_set_active(GTK_SWITCH(app->usersDialogEdit.switchIsActive),isActive);
             gtk_switch_set_active(GTK_SWITCH(app->usersDialogEdit.switchIsAdmin),isAdmin);
 
+
+            app->oldUsername = username;
             g_free(fullname);
-            g_free(username);
             g_free(password);
             g_free(cin);
         }
@@ -1401,8 +1467,22 @@ void users_subdialog_edit_save(GtkWidget* widget,gpointer data){
     isActive = gtk_switch_get_active(GTK_SWITCH(app->usersDialogEdit.switchIsActive));
     isAdmin = gtk_switch_get_active(GTK_SWITCH(app->usersDialogEdit.switchIsAdmin));
 
+    if (g_strcmp0(app->oldUsername,username) != 0 && employee_exist(app->usersFile,username))
+    {
+        // show dialog
+        GtkWidget * dialog = gtk_message_dialog_new (GTK_WINDOW(app->loginWindow.window),
+                            GTK_DIALOG_MODAL,
+                            GTK_MESSAGE_ERROR,
+                            GTK_BUTTONS_OK,
+                            "Nom de l'utilisateur exist");
+        gtk_dialog_run(GTK_DIALOG(dialog));
+        gtk_widget_destroy(dialog);
+        return;
+
+    }
+
     e = employee_new(fullname,cin,username,password,isAdmin,isActive);
-    employee_edit(app->usersFile,username,e);
+    employee_edit(app->usersFile,app->oldUsername,e);
     employee_free(e);
     gtk_tree_selection_get_selected(app->usersDialogEdit.selection,&model,&iter);
     gtk_list_store_set (app->usersDialog.store, &iter,
@@ -1414,12 +1494,13 @@ void users_subdialog_edit_save(GtkWidget* widget,gpointer data){
                       COL_ADMIN,isAdmin,
                       -1);
     log_action(app->logFile,app->logedUser.username,-1,"Modification d'un utilisateur");
-    gtk_window_close(GTK_WINDOW(app->usersDialogEdit.window));
+    users_subdialog_edit_cancel(NULL,(gpointer) app);
 }
 
 void users_subdialog_edit_cancel(GtkWidget *widget,gpointer data){
     App *app = (App*) data;
-    gtk_window_close(GTK_WINDOW(app->usersDialogAdd.window));
+    g_free(app->oldUsername);
+    gtk_window_close(GTK_WINDOW(app->usersDialogEdit.window));
 }
 
 void settings_dialog(App* app){
@@ -1446,10 +1527,11 @@ void settings_dialog(App* app){
     gtk_window_set_modal(GTK_WINDOW(window),TRUE);
     gtk_window_set_transient_for(GTK_WINDOW(window),GTK_WINDOW(app->mainWindow.window));
     gtk_container_set_border_width(GTK_CONTAINER(window),10);
+    
 
     grid = gtk_grid_new();
+    gtk_container_set_border_width(GTK_CONTAINER(window),10);
     gtk_grid_set_row_spacing(GTK_GRID(grid),10);
-    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
 
     btnSave = gtk_button_new_with_label("Enregistrer");
     btnCancel = gtk_button_new_with_label("Annuler");
@@ -1488,6 +1570,10 @@ void settings_dialog(App* app){
 
 
 
+
+
+    gtk_grid_set_row_spacing(GTK_GRID(grid),10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
 
     gtk_grid_attach(GTK_GRID(grid),lblNormal,1,0,1,1);
     gtk_grid_attach(GTK_GRID(grid),lblSubscriber,2,0,1,1);
@@ -1571,8 +1657,10 @@ void employee_window(App *app){
                 *image,
                 *vbox,
                 *btnExit,
+                *lblUser,
                 *btnCheckOut,
                 *btnTicket;
+    PangoFontDescription *font_desc;
 
 
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -1581,6 +1669,15 @@ void employee_window(App *app){
     gtk_window_set_position(GTK_WINDOW(window),GTK_WIN_POS_CENTER);
 
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
+
+
+    gchar * userWelcome = g_strdup_printf("Bonjour : %s",app->logedUser.username);
+    lblUser = gtk_label_new(userWelcome);
+    g_free(userWelcome);
+    font_desc = pango_font_description_from_string ("Arimo bold 30");
+    gtk_widget_override_font (lblUser, font_desc);
+    pango_font_description_free (font_desc);
+    gtk_box_pack_start(GTK_BOX(vbox),lblUser,TRUE,FALSE,0);
 
     btnTicket = gtk_button_new();
     image = gtk_image_new_from_file("img/ticket.png");
@@ -1639,6 +1736,11 @@ void ticket_dialog(App *app){
     lblCategory = gtk_label_new("Categorie");
     lblClientType = gtk_label_new("Type de client");
 
+    gtk_widget_set_halign((lblCategory), GTK_ALIGN_START);
+    gtk_widget_set_halign((lblClientType), GTK_ALIGN_START);
+
+
+
     radioNormal = gtk_radio_button_new_with_label(NULL,"Client normale");
     GSList *group = gtk_radio_button_get_group (GTK_RADIO_BUTTON(radioNormal));
     radioSubscriber = gtk_radio_button_new_with_label(group,"Client Abonné");
@@ -1649,6 +1751,9 @@ void ticket_dialog(App *app){
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(comboCategory),"Categorie 3");
     gtk_combo_box_set_active(GTK_COMBO_BOX(comboCategory),0);
 
+
+    gtk_grid_set_row_spacing(GTK_GRID(grid),10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid),10);
 
     gtk_grid_attach(GTK_GRID(grid),lblCategory,0,0,1,1);
     gtk_grid_attach(GTK_GRID(grid),comboCategory,1,0,1,1);
@@ -1677,8 +1782,6 @@ void ticket_dialog(App *app){
     app->ticketDialog.comboCategory = comboCategory;
 
     gtk_widget_show_all(window);
-
-
 }
 
 void ticket_dialog_show(GtkWidget *widget, gpointer data){
@@ -1691,6 +1794,7 @@ void ticket_dialog_ok(GtkWidget* widget, gpointer data){
     CategoryType cat;
     ClientType ct;
     Ticket *tkt;
+    GtkWidget *printDialog;
     cat= gtk_combo_box_get_active(GTK_COMBO_BOX(app->ticketDialog.comboCategory));
     
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->ticketDialog.radioNormal)))
@@ -1702,6 +1806,7 @@ void ticket_dialog_ok(GtkWidget* widget, gpointer data){
     gdouble catPrice = category_get_price(app->configFile,cat,ct);
     tkt = ticket_new(app->configFile,catPrice,cat,ct);
     caisse_add(app->caisseFile,catPrice);
+   
     log_action(app->logFile,app->logedUser.username,tkt->id,"Retirer un Ticket");
     ticket_free(tkt);
 
@@ -1775,7 +1880,6 @@ void checkout_dialog(App *app){
     app->checkOutDialog.spinCurrentPrice = spinCurrentPrice;
 
     gtk_widget_show_all(window);
-
 }
 
 
@@ -1783,6 +1887,7 @@ void checkout_dialog_show(GtkWidget* widget, gpointer* data){
 
     checkout_dialog((App*) data);
 }
+
 void checkout_dialog_ok(GtkWidget* widget, gpointer* data){
     App *app = (App*) data;
     gdouble caissePrice = caisse_get(app->caisseFile);
